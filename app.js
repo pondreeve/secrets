@@ -10,9 +10,11 @@ const passportLocalMongoose = require("passport-local-mongoose");
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const findOrCreate = require("mongoose-findorcreate");
 const port = 5001;
+const baseRoute = "/portfolio/secrets";
 const app = express();
 
 app.set('view engine', 'ejs');
+app.set('views', __dirname+'/views');
 app.use(session({
   secret: process.env.SECRET,
   resave: false,
@@ -24,7 +26,8 @@ app.use(passport.session());
 
 
 app.use(bodyParser.urlencoded({extended: true}));
-app.use(express.static("public"));
+app.use(express.static(__dirname+"/public"));
+console.log(__dirname);
 
 mongoose.connect(process.env.DB_CONNECT_STRING, {
   useNewUrlParser: true,
@@ -63,7 +66,7 @@ passport.deserializeUser(function(id, done) {
 passport.use(new GoogleStrategy({
     clientID: process.env.CLIENT_ID,
     clientSecret: process.env.CLIENT_SECRET,
-    callbackURL: "http://localhost:"+port+"/auth/google/secrets"
+    callbackURL: "http://localhost:"+port+baseRoute+"/auth/google/secrets"
   },
   function(accessToken, refreshToken, profile, cb) {
     User.findOrCreate({ googleId: profile.id }, function (err, user) {
@@ -72,29 +75,41 @@ passport.use(new GoogleStrategy({
   }
 ));
 
-app.get("/",function(req, res){
+app.get(baseRoute+"/",function(req, res){
     res.render("home");
 });
 
-app.get("/auth/google",
+app.get(baseRoute+"/auth/google",
   passport.authenticate("google",{ scope: ["profile"]})
 );
 
-app.get("/auth/google/secrets",
-  passport.authenticate("google", { failureRedirect: "/login" }),
-  function(req, res) {
-    // Successful authentication, redirect home.
-    res.redirect("/secrets");
-  });
+app.get( baseRoute+'/auth/google/secrets',
+    passport.authenticate( 'google', {
+        successRedirect: baseRoute+'/secrets',
+        failureRedirect: baseRoute+'/auth/google/failure',
+         scope: [ 'https://www.googleapis.com/auth/plus.login' ]
 
-app.get("/login",function(req, res){
+    })
+    // , function(req,res){
+    //       res.redirect("secrets")
+    //     }
+);
+
+// app.get(baseRoute+"/auth/google/secrets",
+//   passport.authenticate("google", { failureRedirect: baseRoute+"/login" }),
+//   function(req, res) {
+//     // Successful authentication, redirect home.
+//     res.redirect("secrets");
+//   });
+
+app.get(baseRoute+"/login",function(req, res){
     res.render("login");
 });
-app.get("/register",function(req, res){
+app.get(baseRoute+"/register",function(req, res){
     res.render("register");
 });
 
-app.get("/secrets", function(req, res){
+app.get(baseRoute+"/secrets", function(req, res){
   if (req.isAuthenticated()){
     User.find({secret: {$ne: null}}, function(err, foundUsers){
       if (err){
@@ -106,16 +121,16 @@ app.get("/secrets", function(req, res){
       }
     });
   } else {
-    res.redirect("/login");
+    res.redirect(baseRoute+"/login");
   }
 });
 
-app.get("/logout", function(req, res){
+app.get(baseRoute+"/logout", function(req, res){
   req.logout();
-  res.redirect("/");
+  res.redirect(baseRoute+"/");
 });
 
-app.post("/login", function(req, res){
+app.post(baseRoute+"/login", function(req, res){
   const user = new User({
     username: req.body.username,
     password: req.body.password
@@ -126,38 +141,38 @@ app.post("/login", function(req, res){
       console.log(err);
     } else {
       passport.authenticate("local")(req, res, function(){
-        res.redirect("/secrets");
+        res.redirect(baseRoute+"/secrets");
       });
     }
   });
 });
 
-app.post("/register",function(req, res){
+app.post(baseRoute+"/register",function(req, res){
   User.register({username: req.body.username},
                 req.body.password, function(err,user){
                   if (err){
                     console.log(err);
-                    res.redirect("/register");
+                    res.redirect(baseRoute+"/register");
                   } else {
                     passport.authenticate("local")(req, res, function(){
-                      res.redirect("/secrets");
+                      res.redirect(baseRoute+"/secrets");
                     });
                   }
                 });
 });
 
-app.get("/submit",function(req, res){
+app.get(baseRoute+"/submit",function(req, res){
   if (req.isAuthenticated()){
     res.render("submit");
   } else {
-    res.redirect("/login");
+    res.redirect(baseRoute+"/login");
   }
 });
 
-app.post("/submit",function(req, res){
+app.post(baseRoute+"/submit",function(req, res){
   const submittedSecret = req.body.secret;
   if (req.user == undefined) {
-    res.redirect("/login");
+    res.redirect(baseRoute+"/login");
     return;
   }
   console.log(req.user._id);
@@ -171,7 +186,7 @@ app.post("/submit",function(req, res){
           if (err) {
             console.log(err);
           }else{
-            res.redirect("/secrets");
+            res.redirect(baseRoute+"/secrets");
           }
         });
       }
