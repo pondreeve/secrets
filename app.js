@@ -1,4 +1,5 @@
 //jshint esversion:6
+// bigass app file - To be refactored into modular pattern
 require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
@@ -10,7 +11,7 @@ const passportLocalMongoose = require("passport-local-mongoose");
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const findOrCreate = require("mongoose-findorcreate");
 const port = 5001;
-const baseRoute = "/portfolio/secrets";
+const baseRoute = "/portfolio/secrets"; // needed to set this route for hosting it on my site
 const app = express();
 
 app.set('view engine', 'ejs');
@@ -24,34 +25,31 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-
+// body-parser
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(express.static(__dirname+"/public"));
-console.log(__dirname);
 
+// connect to mongodb
 mongoose.connect(process.env.DB_CONNECT_STRING, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 });
-
 mongoose.set("useCreateIndex", true);
 
+// user Schema to hold poster of secret
 let userSchema = new mongoose.Schema({
   email: String,
   password: String,
   googleId: String,
   secret: String
 });
-
+//apply passport plugins for user Schema
 userSchema.plugin(passportLocalMongoose);
 userSchema.plugin(findOrCreate);
 
 const User = mongoose.model("User",userSchema);
-
+// creating email/pass strategy
 passport.use(User.createStrategy());
-
-//passport.serializeUser(User.serializeUser());
-//passport.deserializeUser(User.deserializeUser());
 
 passport.serializeUser(function(user, done) {
   done(null, user.id);
@@ -63,53 +61,45 @@ passport.deserializeUser(function(id, done) {
   });
 });
 
+//creating google strategy upon success find or create user in users collection
 passport.use(new GoogleStrategy({
     clientID: process.env.CLIENT_ID,
     clientSecret: process.env.CLIENT_SECRET,
-    callbackURL: "http://localhost:"+port+baseRoute+"/auth/google/secrets"
+    callbackURL: "https://www.lukapondreeve.com/portfolio/secrets/auth/google/secrets"
   },
   function(accessToken, refreshToken, profile, cb) {
     User.findOrCreate({ googleId: profile.id }, function (err, user) {
+// need to handle this part - it somehow duplicates key
       return cb(err, user);
     });
   }
 ));
 
-app.get(baseRoute+"/",function(req, res){
+// Routing
+app.get("/",function(req, res){
     res.render("home");
 });
 
-app.get(baseRoute+"/auth/google",
+// OAUTH part
+app.get("/auth/google",
   passport.authenticate("google",{ scope: ["profile"]})
 );
-
-app.get( baseRoute+'/auth/google/secrets',
+app.get('/auth/google/secrets',
     passport.authenticate( 'google', {
         successRedirect: baseRoute+'/secrets',
-        failureRedirect: baseRoute+'/auth/google/failure',
-         scope: [ 'https://www.googleapis.com/auth/plus.login' ]
-
+        failureRedirect: baseRoute+'/login',
+        scope: [ 'profile' ]
     })
-    // , function(req,res){
-    //       res.redirect("secrets")
-    //     }
 );
 
-// app.get(baseRoute+"/auth/google/secrets",
-//   passport.authenticate("google", { failureRedirect: baseRoute+"/login" }),
-//   function(req, res) {
-//     // Successful authentication, redirect home.
-//     res.redirect("secrets");
-//   });
-
-app.get(baseRoute+"/login",function(req, res){
+app.get("/login",function(req, res){
     res.render("login");
 });
-app.get(baseRoute+"/register",function(req, res){
+app.get("/register",function(req, res){
     res.render("register");
 });
 
-app.get(baseRoute+"/secrets", function(req, res){
+app.get("/secrets", function(req, res){
   if (req.isAuthenticated()){
     User.find({secret: {$ne: null}}, function(err, foundUsers){
       if (err){
@@ -125,12 +115,12 @@ app.get(baseRoute+"/secrets", function(req, res){
   }
 });
 
-app.get(baseRoute+"/logout", function(req, res){
+app.get("/logout", function(req, res){
   req.logout();
   res.redirect(baseRoute+"/");
 });
 
-app.post(baseRoute+"/login", function(req, res){
+app.post("/login", function(req, res){
   const user = new User({
     username: req.body.username,
     password: req.body.password
@@ -147,7 +137,7 @@ app.post(baseRoute+"/login", function(req, res){
   });
 });
 
-app.post(baseRoute+"/register",function(req, res){
+app.post("/register",function(req, res){
   User.register({username: req.body.username},
                 req.body.password, function(err,user){
                   if (err){
@@ -161,7 +151,8 @@ app.post(baseRoute+"/register",function(req, res){
                 });
 });
 
-app.get(baseRoute+"/submit",function(req, res){
+// render secret entry view "submit"
+app.get("/submit",function(req, res){
   if (req.isAuthenticated()){
     res.render("submit");
   } else {
@@ -169,7 +160,8 @@ app.get(baseRoute+"/submit",function(req, res){
   }
 });
 
-app.post(baseRoute+"/submit",function(req, res){
+// save secret
+app.post("/submit",function(req, res){
   const submittedSecret = req.body.secret;
   if (req.user == undefined) {
     res.redirect(baseRoute+"/login");
