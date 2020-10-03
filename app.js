@@ -67,9 +67,8 @@ passport.use(new GoogleStrategy({
     clientSecret: process.env.CLIENT_SECRET,
     callbackURL: "https://www.lukapondreeve.com/portfolio/secrets/auth/google/secrets"
   },
-  function(accessToken, refreshToken, profile, cb) {
-    User.findOrCreate({ googleId: profile.id }, function (err, user) {
-// need to handle this part - it somehow duplicates key
+  function(accessToken, refreshToken, profile, cb) { //usernames have to be unique - so for googleId username should be googleId
+    User.findOrCreate({ googleId: profile.id, username: profile.id }, function (err, user) {
       return cb(err, user);
     });
   }
