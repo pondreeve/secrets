@@ -167,12 +167,13 @@ app.post("/submit",function(req, res){
     res.redirect(baseRoute+"/login");
     return;
   }
-  console.log(req.user._id);
+  //console.log(req.user._id);
   User.findById(req.user._id, function(err, foundUser){
     if (err) {
       console.log(err);
     }else{
       if (foundUser){
+// basically it doesnt inserts a record. It updates it.. to be fixed
         foundUser.secret = submittedSecret;
         foundUser.save(function(err){
           if (err) {
